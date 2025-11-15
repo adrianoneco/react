@@ -52,7 +52,16 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
       } else if (data.type === "webrtc-ice-candidate") {
         await handleIceCandidate(data.candidate);
       } else if (data.type === "call-end") {
-        endCall();
+        endCall(false);
+        toast({
+          title: "Chamada encerrada",
+        });
+      } else if (data.type === "call-declined") {
+        endCall(false);
+        toast({
+          title: "Chamada recusada",
+          variant: "destructive",
+        });
       }
     };
 
@@ -101,12 +110,15 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
       return;
     }
 
+    let stream: MediaStream | null = null;
+    let pc: RTCPeerConnection | null = null;
+
     try {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: withVideo,
         audio: true,
       });
@@ -116,9 +128,9 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
         localVideoRef.current.srcObject = stream;
       }
 
-      const pc = createPeerConnection();
+      pc = createPeerConnection();
       stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
+        pc!.addTrack(track, stream!);
       });
 
       const offer = await pc.createOffer();
@@ -135,12 +147,28 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
 
       setIsCallActive(true);
       setIsVideoEnabled(withVideo);
+      setIsAudioEnabled(true);
       toast({
         title: "Chamada iniciada",
         description: withVideo ? "Chamada de vídeo iniciada" : "Chamada de voz iniciada",
       });
     } catch (error) {
       console.error("Erro ao iniciar chamada:", error);
+      
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+      }
+      if (pc) {
+        pc.close();
+        peerConnectionRef.current = null;
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+      
+      setIsCallActive(false);
+      
       toast({
         title: "Erro",
         description: "Não foi possível acessar câmera/microfone",
@@ -159,15 +187,18 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
       return;
     }
     
+    let stream: MediaStream | null = null;
+    let pc: RTCPeerConnection | null = null;
+
     try {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
 
-      const pc = createPeerConnection();
+      pc = createPeerConnection();
       await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: incomingWithVideo,
         audio: true,
       });
@@ -178,7 +209,7 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
       }
 
       stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
+        pc!.addTrack(track, stream!);
       });
 
       const answer = await pc.createAnswer();
@@ -195,12 +226,30 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
       setIsCallActive(true);
       setIsIncoming(false);
       setIsVideoEnabled(incomingWithVideo);
+      setIsAudioEnabled(true);
       setPendingOffer(null);
       toast({
         title: "Chamada aceita",
       });
     } catch (error) {
       console.error("Erro ao aceitar chamada:", error);
+      
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+      }
+      if (pc) {
+        pc.close();
+        peerConnectionRef.current = null;
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+      
+      setIsCallActive(false);
+      setIsIncoming(false);
+      setPendingOffer(null);
+      
       toast({
         title: "Erro",
         description: "Não foi possível aceitar a chamada",
@@ -212,7 +261,7 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
   const declineCall = () => {
     if (ws) {
       ws.send(JSON.stringify({
-        type: "call-end",
+        type: "call-declined",
         targetUserId,
       }));
     }
@@ -224,20 +273,26 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
   };
 
   const handleAnswer = async (answer: RTCSessionDescriptionInit) => {
+    if (!peerConnectionRef.current) {
+      console.warn("Cannot handle answer: peer connection not available");
+      return;
+    }
+    
     try {
-      if (peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-      }
+      await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
     } catch (error) {
       console.error("Erro ao processar resposta:", error);
     }
   };
 
   const handleIceCandidate = async (candidate: RTCIceCandidateInit) => {
+    if (!peerConnectionRef.current) {
+      console.warn("Cannot handle ICE candidate: peer connection not available");
+      return;
+    }
+    
     try {
-      if (peerConnectionRef.current) {
-        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-      }
+      await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (error) {
       console.error("Erro ao adicionar candidato ICE:", error);
     }
@@ -263,7 +318,7 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
     }
   };
 
-  const endCall = () => {
+  const endCall = (sendSignal = true) => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
@@ -284,7 +339,7 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
       peerConnectionRef.current = null;
     }
     
-    if (ws && isCallActive) {
+    if (ws && sendSignal && isCallActive) {
       ws.send(JSON.stringify({
         type: "call-end",
         targetUserId,

@@ -58,7 +58,7 @@ export function setupWebSocket(httpServer: Server) {
           });
         }
 
-        if (message.type === "call-start" || message.type === "call-end") {
+        if (message.type === "call-start" || message.type === "call-end" || message.type === "call-declined") {
           wss.clients.forEach((client) => {
             const authClient = client as AuthenticatedWebSocket;
             if (

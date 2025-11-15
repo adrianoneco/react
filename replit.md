@@ -2,9 +2,31 @@
 
 ## Overview
 
-ChatApp is a modern real-time messaging platform built with React, Express, and PostgreSQL. The application features a blue-purple gradient interface with a collapsible sidebar navigation system. It's designed as a full-stack TypeScript application with authentication, session management, and a component-based UI architecture using shadcn/ui components.
+ChatApp is a modern real-time messaging platform built with React, Express, and PostgreSQL. The application features a blue-purple gradient interface with a collapsible sidebar navigation system. It's designed as a full-stack TypeScript application with authentication, session management, AI-powered assistance, and WebRTC voice/video calling capabilities.
 
-The application is currently in development, with authentication and basic navigation implemented. Future features include real-time messaging, contact management, and user settings.
+## Recent Changes (November 2025)
+
+**AI-Powered Features**
+- Integrated Groq API for AI-powered message assistance
+- Message correction feature using AI to improve grammar and clarity
+- Template suggestion generation using AI based on context
+- Custom message templates with dynamic variables (clientName, attendantName, protocol, conversationDate)
+
+**WebRTC Calling System**
+- Bidirectional voice and video calling between users
+- Incoming call prompts with accept/decline functionality
+- Media controls (mute/unmute audio, enable/disable video)
+- Robust cleanup of peer connections and media tracks
+- Resilient handlers for race conditions in signaling
+- Differentiated handling of call decline vs call end
+- Automatic state synchronization between calls
+
+**Bug Fixes**
+- Removed duplicate JSON parsing in apiRequest calls
+- Fixed async mutation handling in TanStack Query
+- Corrected WebRTC signaling flow for incoming calls
+- Implemented defensive guards to prevent concurrent calls
+- Added comprehensive error handling with recovery mechanisms
 
 ## User Preferences
 
@@ -24,6 +46,7 @@ Preferred communication style: Simple, everyday language.
 - Tailwind CSS for styling with custom design tokens
 - Component-based architecture with reusable UI elements in `client/src/components/ui/`
 - Custom gradient theme (blue-purple) defined in design guidelines
+- Sidebar navigation with routes for Conversations, Message Assistant, and Settings
 
 **State Management & Data Fetching**
 - TanStack Query (React Query) for server state management
@@ -38,6 +61,12 @@ Preferred communication style: Simple, everyday language.
 - Collapsible sidebar with smooth transitions (300ms ease-in-out)
 - Gradient header with fixed positioning and shadow depth
 
+**Real-time Features**
+- WebSocket connections for live message updates
+- WebRTC peer connections for voice/video calls
+- ICE candidate exchange for optimal connection paths
+- SDP offer/answer negotiation for call setup
+
 ### Backend Architecture
 
 **Server Framework**
@@ -50,6 +79,7 @@ Preferred communication style: Simple, everyday language.
 - Modular route registration pattern (`registerRoutes`, `registerAuthRoutes`)
 - JSON-based request/response handling
 - Session-based authentication with cookie storage
+- AI integration routes for text correction and template generation
 
 **Authentication & Security**
 - Argon2 password hashing (argon2id variant with secure parameters)
@@ -57,6 +87,13 @@ Preferred communication style: Simple, everyday language.
 - Secure cookie configuration (secure flag in production)
 - 7-day session expiration (configurable)
 - Password validation using Zod schemas (minimum 6 characters)
+- API key management via environment variables
+
+**WebSocket Signaling**
+- Real-time message broadcasting to conversation participants
+- WebRTC signaling for call setup (offer, answer, ICE candidates)
+- Call lifecycle management (call-start, call-end, call-declined)
+- User presence tracking via authenticated WebSocket connections
 
 ### Data Storage
 
@@ -67,6 +104,9 @@ Preferred communication style: Simple, everyday language.
 
 **Database Schema**
 - `users` table with UUID primary keys (generated using `gen_random_uuid()`)
+- `conversations` table with protocol numbers and status tracking
+- `messages` table with content, sender info, and reply threading
+- `message_templates` table with title, content, and category fields
 - User fields: id, username (unique), password (hashed), createdAt
 - Timestamps for audit trails
 
@@ -78,9 +118,16 @@ Preferred communication style: Simple, everyday language.
 **Validation & Type Safety**
 - Drizzle-Zod integration for schema validation
 - Zod schemas for login and registration with password confirmation
+- Zod schemas for message templates and AI requests
 - Portuguese language error messages for user-facing validation
 
 ### External Dependencies
+
+**AI Services**
+- Groq API integration for text correction and generation
+- Groq Llama 3.3 70B model for high-quality responses
+- Temperature-controlled generation (0.7 for natural responses)
+- Streaming support for real-time AI responses
 
 **Database Services**
 - Neon serverless PostgreSQL (via `@neondatabase/serverless`)
@@ -110,3 +157,26 @@ Preferred communication style: Simple, everyday language.
 - React Hook Form for form state management
 - @hookform/resolvers for Zod schema integration
 - Client-side validation with server-side verification
+
+## Feature Status
+
+### Completed Features
+✅ User authentication and session management
+✅ Real-time messaging with WebSocket
+✅ Conversation management (create, update, list)
+✅ Message threading with reply support
+✅ Message templates with CRUD operations
+✅ AI-powered text correction via Groq
+✅ AI-powered template suggestions
+✅ Dynamic variables in templates (clientName, attendantName, protocol, conversationDate)
+✅ WebRTC voice calling
+✅ WebRTC video calling
+✅ Incoming call prompts with accept/decline
+✅ Media controls (mute, camera toggle)
+✅ Robust resource cleanup and error handling
+
+### Planned Features
+⏳ Calendar page for scheduling meetings
+⏳ Meeting system with public/private configuration
+⏳ Meeting recording capability
+⏳ Meeting links generation and sharing
