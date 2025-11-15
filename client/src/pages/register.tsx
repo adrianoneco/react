@@ -14,6 +14,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -28,6 +35,7 @@ export default function Register() {
       username: "",
       password: "",
       confirmPassword: "",
+      role: "client",
     },
   });
 
@@ -35,7 +43,7 @@ export default function Register() {
     mutationFn: async (data: RegisterInput) => {
       const { confirmPassword, ...registerData } = data;
       const response = await apiRequest("POST", "/api/auth/register", registerData);
-      return response.json() as Promise<{ user: { id: string; username: string; createdAt: Date } }>;
+      return response.json() as Promise<{ user: { id: string; username: string; role: string; createdAt: Date } }>;
     },
     onSuccess: async (data) => {
       toast({
@@ -71,6 +79,27 @@ export default function Register() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de usuário</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-role">
+                          <SelectValue placeholder="Selecione o tipo de usuário" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="client" data-testid="option-client">Cliente</SelectItem>
+                        <SelectItem value="attendant" data-testid="option-attendant">Atendente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="username"

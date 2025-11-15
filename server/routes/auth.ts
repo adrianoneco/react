@@ -13,7 +13,7 @@ export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
-      const { username, password } = validatedData;
+      const { username, password, role } = validatedData;
 
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
@@ -26,6 +26,7 @@ export function registerAuthRoutes(app: Express) {
       const user = await storage.createUser({
         username,
         password: hashedPassword,
+        role,
       });
 
       req.session.userId = user.id;
@@ -34,6 +35,7 @@ export function registerAuthRoutes(app: Express) {
         user: {
           id: user.id,
           username: user.username,
+          role: user.role,
           createdAt: user.createdAt,
         },
       });
@@ -70,6 +72,7 @@ export function registerAuthRoutes(app: Express) {
         user: {
           id: user.id,
           username: user.username,
+          role: user.role,
           createdAt: user.createdAt,
         },
       });
@@ -95,6 +98,7 @@ export function registerAuthRoutes(app: Express) {
       res.json({
         id: user.id,
         username: user.username,
+        role: user.role,
         createdAt: user.createdAt,
       });
     } catch (error: any) {
