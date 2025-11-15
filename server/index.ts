@@ -1,8 +1,28 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+const sessionSecret = process.env.SESSION_SECRET || "dev-secret-change-in-production";
+
+if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("SESSION_SECRET must be set in production");
+}
+
+app.use(
+  session({
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    },
+  })
+);
 
 declare module 'http' {
   interface IncomingMessage {

@@ -1,16 +1,91 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { ProtectedRoute } from "@/components/protected-route";
+import { AppHeader } from "@/components/app-header";
+import { AppSidebar } from "@/components/app-sidebar";
+import Login from "@/pages/login";
+import Register from "@/pages/register";
+import Home from "@/pages/home";
+import Contacts from "@/pages/contacts";
+import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+
+function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toggleSidebar } = useSidebar();
+
+  const handleLogout = () => {
+    logout();
+    setLocation("/login");
+  };
+
+  const sidebarStyle = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
+  };
+
+  return (
+    <div className="flex h-screen w-full">
+      <AppSidebar />
+      <div className="flex flex-col flex-1">
+        <AppHeader
+          onToggleSidebar={toggleSidebar}
+          username={user?.username}
+          onLogout={handleLogout}
+        />
+        <main className="flex-1 overflow-auto bg-background">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function AuthenticatedLayoutWrapper({ children }: { children: React.ReactNode }) {
+  const sidebarStyle = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
+  };
+
+  return (
+    <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+      <AuthenticatedLayout>{children}</AuthenticatedLayout>
+    </SidebarProvider>
+  );
+}
 
 function Router() {
   return (
     <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+      <Route path="/">
+        <ProtectedRoute>
+          <AuthenticatedLayoutWrapper>
+            <Home />
+          </AuthenticatedLayoutWrapper>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/contacts">
+        <ProtectedRoute>
+          <AuthenticatedLayoutWrapper>
+            <Contacts />
+          </AuthenticatedLayoutWrapper>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute>
+          <AuthenticatedLayoutWrapper>
+            <Settings />
+          </AuthenticatedLayoutWrapper>
+        </ProtectedRoute>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -20,8 +95,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <AuthProvider>
+          <Toaster />
+          <Router />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
