@@ -242,7 +242,7 @@ export function registerConversationRoutes(app: Express) {
 
       const wsServer = getWebSocketServer();
       if (wsServer) {
-        wsServer.broadcast(req.params.id, {
+        wsServer.broadcastToConversation(req.params.id, {
           type: "new_message",
           message,
         });
@@ -286,7 +286,7 @@ export function registerConversationRoutes(app: Express) {
       if (message) {
         const wsServer = getWebSocketServer();
         if (wsServer) {
-          wsServer.broadcast(message.conversationId, {
+          wsServer.broadcastToConversation(message.conversationId, {
             type: "new_reaction",
             reaction,
           });
@@ -325,7 +325,7 @@ export function registerConversationRoutes(app: Express) {
       if (message) {
         const wsServer = getWebSocketServer();
         if (wsServer) {
-          wsServer.broadcast(message.conversationId, {
+          wsServer.broadcastToConversation(message.conversationId, {
             type: "delete_reaction",
             messageId: req.params.messageId,
             userId: user.id,

@@ -1,6 +1,7 @@
-import { MessageCircle, Users, Settings, Menu } from "lucide-react";
+import { MessageCircle, Users, Settings, Menu, UserCog } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Sidebar,
   SidebarContent,
@@ -34,12 +35,26 @@ const menuItems = [
   },
 ];
 
+const attendantItems = [
+  {
+    title: "Usuários",
+    url: "/users",
+    icon: UserCog,
+    testId: "link-users",
+  },
+];
+
 interface AppSidebarProps {
   onToggle?: () => void;
 }
 
 export function AppSidebar({ onToggle }: AppSidebarProps) {
   const [location] = useLocation();
+  const { user } = useAuth();
+
+  const allItems = user?.role === "attendant" 
+    ? [...menuItems.slice(0, 2), ...attendantItems, ...menuItems.slice(2)]
+    : menuItems;
 
   return (
     <Sidebar collapsible="icon">
@@ -62,7 +77,7 @@ export function AppSidebar({ onToggle }: AppSidebarProps) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
+              {allItems.map((item) => {
                 const isActive = location === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>

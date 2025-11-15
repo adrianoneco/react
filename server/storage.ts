@@ -5,6 +5,7 @@ import {
   reactions,
   type User, 
   type InsertUser,
+  type UpdateUser,
   type Conversation,
   type InsertConversation,
   type Message,
@@ -21,6 +22,9 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: UpdateUser): Promise<User | undefined>;
+  deleteUser(id: string): Promise<void>;
+  getUsers(filters?: { role?: string }): Promise<User[]>;
   
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -53,6 +57,36 @@ export class DatabaseStorage implements IStorage {
       .values(insertUser)
       .returning();
     return user;
+  }
+
+  async updateUser(id: string, updates: UpdateUser): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getUsers(filters?: { role?: string }): Promise<User[]> {
+    if (filters?.role) {
+      const result = await db
+        .select()
+        .from(users)
+        .where(eq(users.role, filters.role as any))
+        .orderBy(desc(users.createdAt));
+      return result;
+    }
+    
+    const result = await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt));
+    return result;
   }
 
   async createConversation(insertConversation: InsertConversation): Promise<Conversation> {

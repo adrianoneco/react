@@ -6,6 +6,7 @@ import { parse } from "url";
 interface AuthenticatedWebSocket extends WebSocket {
   userId?: string;
   conversationId?: string;
+  authenticated?: boolean;
 }
 
 export function setupWebSocket(httpServer: Server) {
@@ -32,6 +33,7 @@ export function setupWebSocket(httpServer: Server) {
         
         if (message.type === "auth") {
           ws.userId = message.userId;
+          ws.authenticated = true;
         }
         
         if (message.type === "subscribe") {
@@ -52,7 +54,19 @@ export function setupWebSocket(httpServer: Server) {
   });
 
   return {
-    broadcast: (conversationId: string, data: any) => {
+    broadcast: (data: any) => {
+      wss.clients.forEach((client) => {
+        const authClient = client as AuthenticatedWebSocket;
+        if (
+          client.readyState === WebSocket.OPEN &&
+          authClient.authenticated
+        ) {
+          client.send(JSON.stringify(data));
+        }
+      });
+    },
+    
+    broadcastToConversation: (conversationId: string, data: any) => {
       wss.clients.forEach((client) => {
         const authClient = client as AuthenticatedWebSocket;
         if (

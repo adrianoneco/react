@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   role: text("role", { enum: ["client", "attendant"] }).notNull().default("client"),
+  profilePicture: text("profile_picture"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -45,6 +46,26 @@ export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
   role: true,
+  profilePicture: true,
+});
+
+export const updateUserSchema = z.object({
+  username: z.string().min(3, "Nome de usuário deve ter pelo menos 3 caracteres").optional(),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres").optional(),
+  role: z.enum(["client", "attendant"]).optional(),
+  profilePicture: z.string().optional(),
+});
+
+export const createUserBodySchema = z.object({
+  username: z.string().min(3, "Nome de usuário deve ter pelo menos 3 caracteres"),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  role: z.enum(["client", "attendant"]),
+});
+
+export const updateUserBodySchema = z.object({
+  username: z.string().min(3, "Nome de usuário deve ter pelo menos 3 caracteres").optional(),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres").optional(),
+  role: z.enum(["client", "attendant"]).optional(),
 });
 
 export const loginSchema = z.object({
@@ -103,3 +124,6 @@ export type Message = typeof messages.$inferSelect;
 export type UpdateConversation = z.infer<typeof updateConversationSchema>;
 export type InsertReaction = z.infer<typeof insertReactionSchema>;
 export type Reaction = typeof reactions.$inferSelect;
+export type UpdateUser = z.infer<typeof updateUserSchema>;
+export type CreateUserBody = z.infer<typeof createUserBodySchema>;
+export type UpdateUserBody = z.infer<typeof updateUserBodySchema>;

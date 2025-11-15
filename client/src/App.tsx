@@ -12,6 +12,7 @@ import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Conversations from "@/pages/conversations";
 import Contacts from "@/pages/contacts";
+import Users from "@/pages/users";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -77,6 +78,13 @@ function Router() {
         <ProtectedRoute>
           <AuthenticatedLayoutWrapper>
             <Contacts />
+          </AuthenticatedLayoutWrapper>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/users">
+        <ProtectedRoute>
+          <AuthenticatedLayoutWrapper>
+            <Users />
           </AuthenticatedLayoutWrapper>
         </ProtectedRoute>
       </Route>

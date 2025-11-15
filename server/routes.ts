@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerConversationRoutes } from "./routes/conversations";
 import { registerUploadRoutes } from "./routes/upload";
+import { registerUserRoutes } from "./routes/users";
 import { setupWebSocket } from "./websocket";
 
 let wsServer: ReturnType<typeof setupWebSocket>;
@@ -14,6 +15,7 @@ export function getWebSocketServer() {
 export async function registerRoutes(app: Express): Promise<Server> {
   registerAuthRoutes(app);
   registerConversationRoutes(app);
+  registerUserRoutes(app);
   
   const uploadRouter = app as unknown as Router;
   registerUploadRoutes(uploadRouter);
