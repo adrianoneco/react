@@ -10,7 +10,7 @@ import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
-import Home from "@/pages/home";
+import Conversations from "@/pages/conversations";
 import Contacts from "@/pages/contacts";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
@@ -69,7 +69,7 @@ function Router() {
       <Route path="/">
         <ProtectedRoute>
           <AuthenticatedLayoutWrapper>
-            <Home />
+            <Conversations />
           </AuthenticatedLayoutWrapper>
         </ProtectedRoute>
       </Route>
