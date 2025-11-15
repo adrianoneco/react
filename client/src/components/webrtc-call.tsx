@@ -64,6 +64,11 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
   }, [ws]);
 
   const createPeerConnection = () => {
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
     const pc = new RTCPeerConnection(configuration);
 
     pc.onicecandidate = (event) => {
@@ -87,7 +92,20 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
   };
 
   const startCall = async (withVideo: boolean) => {
+    if (isCallActive || isIncoming) {
+      toast({
+        title: "Chamada em andamento",
+        description: "Já existe uma chamada ativa",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: withVideo,
         audio: true,
@@ -132,9 +150,20 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
   };
 
   const acceptCall = async () => {
-    if (!pendingOffer) return;
+    if (!pendingOffer) {
+      toast({
+        title: "Erro",
+        description: "Nenhuma chamada pendente",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
       const pc = createPeerConnection();
       await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
 
@@ -237,9 +266,22 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
   const endCall = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
     }
+
+    if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+      const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
+      remoteStream.getTracks().forEach((track) => track.stop());
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
     }
     
     if (ws && isCallActive) {
@@ -251,8 +293,7 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
 
     setIsCallActive(false);
     setIsIncoming(false);
-    localStreamRef.current = null;
-    peerConnectionRef.current = null;
+    setPendingOffer(null);
     onCallEnd();
   };
 
@@ -294,6 +335,7 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
           size="icon"
           variant="outline"
           onClick={() => startCall(false)}
+          disabled={isIncoming}
           data-testid="button-voice-call"
         >
           <Phone className="w-4 h-4" />
@@ -302,6 +344,7 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
           size="icon"
           variant="outline"
           onClick={() => startCall(true)}
+          disabled={isIncoming}
           data-testid="button-video-call"
         >
           <Video className="w-4 h-4" />

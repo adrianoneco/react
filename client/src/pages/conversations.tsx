@@ -119,9 +119,9 @@ export default function Conversations() {
   }, [messages]);
 
   const createConversationMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/conversations", {});
-      return response.json() as Promise<Conversation>;
+    mutationFn: async (): Promise<Conversation> => {
+      const data = await apiRequest("POST", "/api/conversations", {});
+      return data as Conversation;
     },
     onSuccess: (newConversation) => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
@@ -182,11 +182,10 @@ export default function Conversations() {
 
   const updateConversationMutation = useMutation({
     mutationFn: async ({ id, status, attendantId }: { id: string; status?: string; attendantId?: string }) => {
-      const response = await apiRequest("PATCH", `/api/conversations/${id}`, {
+      return apiRequest("PATCH", `/api/conversations/${id}`, {
         status,
         attendantId,
       });
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
