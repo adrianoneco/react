@@ -277,15 +277,18 @@ export default function Conversations() {
     if (!messageContent.trim()) return;
     setIsCorrecting(true);
     try {
-      const response = await apiRequest("POST", "/api/ai/correct-text", {
+      const data = await apiRequest("POST", "/api/ai/correct-text", {
         text: messageContent,
       });
-      const data = await response.json();
-      setMessageContent(data.correctedText);
-      toast({
-        title: "Texto corrigido!",
-        description: "A IA corrigiu seu texto.",
-      });
+      if (data && typeof data.correctedText === 'string') {
+        setMessageContent(data.correctedText);
+        toast({
+          title: "Texto corrigido!",
+          description: "A IA corrigiu seu texto.",
+        });
+      } else {
+        throw new Error("Invalid response format");
+      }
     } catch (error) {
       toast({
         title: "Erro",

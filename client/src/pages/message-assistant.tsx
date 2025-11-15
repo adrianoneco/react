@@ -117,15 +117,18 @@ export default function MessageAssistant() {
 
     setIsGenerating(true);
     try {
-      const response = await apiRequest("POST", "/api/ai/generate-template", {
+      const data = await apiRequest("POST", "/api/ai/generate-template", {
         description: aiPrompt,
       });
-      const data = await response.json();
-      setTemplateContent(data.template);
-      toast({
-        title: "Template gerado!",
-        description: "A IA criou um template para você. Revise e ajuste se necessário.",
-      });
+      if (data && typeof data.template === 'string') {
+        setTemplateContent(data.template);
+        toast({
+          title: "Template gerado!",
+          description: "A IA criou um template para você. Revise e ajuste se necessário.",
+        });
+      } else {
+        throw new Error("Invalid response format");
+      }
     } catch (error) {
       toast({
         title: "Erro",

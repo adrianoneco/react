@@ -17,6 +17,8 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isIncoming, setIsIncoming] = useState(false);
+  const [pendingOffer, setPendingOffer] = useState<RTCSessionDescriptionInit | null>(null);
+  const [incomingWithVideo, setIncomingWithVideo] = useState(false);
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -38,8 +40,13 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
       const data = JSON.parse(event.data);
 
       if (data.type === "webrtc-offer") {
+        setPendingOffer(data.offer);
+        setIncomingWithVideo(data.withVideo || false);
         setIsIncoming(true);
-        await handleOffer(data.offer);
+        toast({
+          title: "Chamada recebida",
+          description: data.withVideo ? "Chamada de vídeo" : "Chamada de voz",
+        });
       } else if (data.type === "webrtc-answer") {
         await handleAnswer(data.answer);
       } else if (data.type === "webrtc-ice-candidate") {
@@ -104,10 +111,6 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
           type: "webrtc-offer",
           offer,
           targetUserId,
-        }));
-        ws.send(JSON.stringify({
-          type: "call-start",
-          callerId: userId,
           withVideo,
         }));
       }
@@ -128,13 +131,15 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
     }
   };
 
-  const handleOffer = async (offer: RTCSessionDescriptionInit) => {
+  const acceptCall = async () => {
+    if (!pendingOffer) return;
+    
     try {
       const pc = createPeerConnection();
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: isVideoEnabled,
+        video: incomingWithVideo,
         audio: true,
       });
 
@@ -159,14 +164,34 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
       }
 
       setIsCallActive(true);
+      setIsIncoming(false);
+      setIsVideoEnabled(incomingWithVideo);
+      setPendingOffer(null);
+      toast({
+        title: "Chamada aceita",
+      });
     } catch (error) {
-      console.error("Erro ao processar oferta:", error);
+      console.error("Erro ao aceitar chamada:", error);
       toast({
         title: "Erro",
         description: "Não foi possível aceitar a chamada",
         variant: "destructive",
       });
     }
+  };
+
+  const declineCall = () => {
+    if (ws) {
+      ws.send(JSON.stringify({
+        type: "call-end",
+        targetUserId,
+      }));
+    }
+    setIsIncoming(false);
+    setPendingOffer(null);
+    toast({
+      title: "Chamada recusada",
+    });
   };
 
   const handleAnswer = async (answer: RTCSessionDescriptionInit) => {
@@ -231,7 +256,38 @@ export function WebRTCCall({ conversationId, userId, targetUserId, ws, onCallEnd
     onCallEnd();
   };
 
-  if (!isCallActive && !isIncoming) {
+  if (isIncoming && !isCallActive) {
+    return (
+      <Card className="fixed top-20 right-4 z-50 p-4 w-80">
+        <div className="space-y-3">
+          <h3 className="font-semibold">
+            Chamada de {incomingWithVideo ? "vídeo" : "voz"} recebida
+          </h3>
+          <div className="flex gap-2">
+            <Button
+              className="flex-1"
+              onClick={acceptCall}
+              data-testid="button-accept-call"
+            >
+              <Phone className="w-4 h-4 mr-2" />
+              Aceitar
+            </Button>
+            <Button
+              className="flex-1"
+              variant="destructive"
+              onClick={declineCall}
+              data-testid="button-decline-call"
+            >
+              <PhoneOff className="w-4 h-4 mr-2" />
+              Recusar
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!isCallActive) {
     return (
       <div className="flex gap-2">
         <Button
