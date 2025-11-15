@@ -18,31 +18,32 @@ import NotFound from "@/pages/not-found";
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const { toggleSidebar } = useSidebar();
 
   const handleLogout = () => {
     logout();
     setLocation("/login");
   };
 
-  const sidebarStyle = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
+  return (
+    <div className="flex flex-col h-screen w-full">
+      <AppHeader
+        username={user?.username}
+        onLogout={handleLogout}
+      />
+      <SidebarLayoutWrapper>{children}</SidebarLayoutWrapper>
+    </div>
+  );
+}
+
+function SidebarLayoutWrapper({ children }: { children: React.ReactNode }) {
+  const { toggleSidebar } = useSidebar();
 
   return (
-    <div className="flex h-screen w-full">
-      <AppSidebar />
-      <div className="flex flex-col flex-1">
-        <AppHeader
-          onToggleSidebar={toggleSidebar}
-          username={user?.username}
-          onLogout={handleLogout}
-        />
-        <main className="flex-1 overflow-auto bg-background">
-          {children}
-        </main>
-      </div>
+    <div className="flex flex-1 overflow-hidden">
+      <AppSidebar onToggle={toggleSidebar} />
+      <main className="flex-1 overflow-auto bg-background">
+        {children}
+      </main>
     </div>
   );
 }

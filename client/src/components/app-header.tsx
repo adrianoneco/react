@@ -1,4 +1,4 @@
-import { MessageSquare, Menu, User, LogOut } from "lucide-react";
+import { MessageSquare, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,12 +11,11 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface AppHeaderProps {
-  onToggleSidebar: () => void;
   username?: string;
   onLogout: () => void;
 }
 
-export function AppHeader({ onToggleSidebar, username, onLogout }: AppHeaderProps) {
+export function AppHeader({ username, onLogout }: AppHeaderProps) {
   const userInitials = username
     ? username.substring(0, 2).toUpperCase()
     : "U";
@@ -24,23 +23,11 @@ export function AppHeader({ onToggleSidebar, username, onLogout }: AppHeaderProp
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-blue-600 to-purple-600 shadow-md">
       <div className="flex h-16 items-center px-4 gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onToggleSidebar}
-            className="text-white hover:bg-white/20"
-            data-testid="button-toggle-sidebar"
-          >
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Alternar menu</span>
-          </Button>
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-6 w-6 text-white" />
-            <h1 className="text-xl font-bold text-white hidden sm:block">
-              ChatApp
-            </h1>
-          </div>
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-6 w-6 text-white" />
+          <h1 className="text-xl font-bold text-white hidden sm:block">
+            ChatApp
+          </h1>
         </div>
 
         <div className="flex-1" />
