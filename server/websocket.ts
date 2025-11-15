@@ -43,6 +43,33 @@ export function setupWebSocket(httpServer: Server) {
         if (message.type === "unsubscribe") {
           ws.conversationId = undefined;
         }
+
+        if (message.type === "webrtc-offer" || message.type === "webrtc-answer" || message.type === "webrtc-ice-candidate") {
+          wss.clients.forEach((client) => {
+            const authClient = client as AuthenticatedWebSocket;
+            if (
+              client !== ws &&
+              client.readyState === WebSocket.OPEN &&
+              authClient.conversationId === ws.conversationId &&
+              authClient.userId === message.targetUserId
+            ) {
+              client.send(JSON.stringify(message));
+            }
+          });
+        }
+
+        if (message.type === "call-start" || message.type === "call-end") {
+          wss.clients.forEach((client) => {
+            const authClient = client as AuthenticatedWebSocket;
+            if (
+              client !== ws &&
+              client.readyState === WebSocket.OPEN &&
+              authClient.conversationId === ws.conversationId
+            ) {
+              client.send(JSON.stringify(message));
+            }
+          });
+        }
       } catch (error) {
         console.error("WebSocket message error:", error);
       }

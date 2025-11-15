@@ -1,4 +1,4 @@
-import { MessageCircle, Users, Settings, Menu, UserCog } from "lucide-react";
+import { MessageCircle, Users, Settings, Menu, UserCog, Sparkles } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -41,6 +41,12 @@ const attendantItems = [
     url: "/users",
     icon: UserCog,
     testId: "link-users",
+  },
+  {
+    title: "Assistente de Mensagens",
+    url: "/message-assistant",
+    icon: Sparkles,
+    testId: "link-message-assistant",
   },
 ];
 

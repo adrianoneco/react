@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
-import { Send, MessageSquare, ChevronRight, Clock, CheckCircle, XCircle, Plus, Image, Mic, Video, Paperclip, Reply, X, Smile, Camera } from "lucide-react";
-import type { Conversation, Message } from "@shared/schema";
+import { Send, MessageSquare, ChevronRight, Clock, CheckCircle, XCircle, Plus, Image, Mic, Video, Paperclip, Reply, X, Smile, Camera, Sparkles, CheckCheck, Phone } from "lucide-react";
+import type { Conversation, Message, MessageTemplate } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,8 +20,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { MediaCapture } from "@/components/media-capture";
 import { FileUpload } from "@/components/file-upload";
+import { WebRTCCall } from "@/components/webrtc-call";
 
 export default function Conversations() {
   const { user } = useAuth();
@@ -33,8 +41,16 @@ export default function Conversations() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [mediaDialog, setMediaDialog] = useState<'audio' | 'video' | 'photo' | null>(null);
   const [fileDialog, setFileDialog] = useState<'image' | 'file' | null>(null);
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const [isCorrecting, setIsCorrecting] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { data: templates = [] } = useQuery<MessageTemplate[]>({
+    queryKey: ["/api/templates"],
+    enabled: user?.role === "attendant",
+  });
 
   const { data: conversations = [], refetch: refetchConversations } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations", selectedStatus],
@@ -257,6 +273,56 @@ export default function Conversations() {
     }
   };
 
+  const handleCorrectText = async () => {
+    if (!messageContent.trim()) return;
+    setIsCorrecting(true);
+    try {
+      const response = await apiRequest("POST", "/api/ai/correct-text", {
+        text: messageContent,
+      });
+      const data = await response.json();
+      setMessageContent(data.correctedText);
+      toast({
+        title: "Texto corrigido!",
+        description: "A IA corrigiu seu texto.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível corrigir o texto",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCorrecting(false);
+    }
+  };
+
+  const handleSelectTemplate = (template: MessageTemplate) => {
+    let content = template.content;
+    
+    if (selectedConversation && user) {
+      content = content
+        .replace(/\{\{clientName\}\}/g, "Cliente")
+        .replace(/\{\{attendantName\}\}/g, user.username)
+        .replace(/\{\{protocol\}\}/g, selectedConversation.protocolNumber)
+        .replace(/\{\{conversationDate\}\}/g, getDate(selectedConversation.createdAt));
+    }
+    
+    setMessageContent(content);
+    setAiAssistantOpen(false);
+    toast({
+      title: "Template aplicado!",
+      description: "O template foi inserido na mensagem.",
+    });
+  };
+
+  const getOtherUserId = () => {
+    if (!selectedConversation || !user) return "";
+    return user.id === selectedConversation.clientId 
+      ? selectedConversation.attendantId || ""
+      : selectedConversation.clientId;
+  };
+
   const renderMessage = (msg: Message) => {
     const repliedMessage = msg.replyToId ? messages.find(m => m.id === msg.replyToId) : null;
     const isMine = msg.senderId === user?.id;
@@ -405,7 +471,7 @@ export default function Conversations() {
       <div className="flex-1 flex flex-col">
         {selectedConversationId && selectedConversation ? (
           <>
-            <div className="p-4 border-b flex items-center justify-between">
+            <div className="p-4 border-b flex items-center justify-between gap-2">
               <div className="flex items-center gap-3">
                 <div>
                   <div className="flex items-center gap-2">
@@ -417,14 +483,25 @@ export default function Conversations() {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setInfoSidebarOpen(!infoSidebarOpen)}
-                data-testid="button-toggle-info"
-              >
-                <ChevronRight className={`w-5 h-5 transition-transform ${infoSidebarOpen ? "rotate-180" : ""}`} />
-              </Button>
+              <div className="flex items-center gap-2">
+                {!isCallActive && user && getOtherUserId() && (
+                  <WebRTCCall
+                    conversationId={selectedConversationId!}
+                    userId={user.id}
+                    targetUserId={getOtherUserId()}
+                    ws={wsRef.current}
+                    onCallEnd={() => setIsCallActive(false)}
+                  />
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setInfoSidebarOpen(!infoSidebarOpen)}
+                  data-testid="button-toggle-info"
+                >
+                  <ChevronRight className={`w-5 h-5 transition-transform ${infoSidebarOpen ? "rotate-180" : ""}`} />
+                </Button>
+              </div>
             </div>
 
             <ScrollArea className="flex-1 p-4">
@@ -454,7 +531,51 @@ export default function Conversations() {
                   </Button>
                 </div>
               )}
-              <div className="flex gap-2 items-end">
+              <div className="space-y-2">
+                <div className="flex gap-2 items-center">
+                  <Input
+                    placeholder="Digite sua mensagem..."
+                    value={messageContent}
+                    onChange={(e) => setMessageContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    disabled={sendMessageMutation.isPending}
+                    data-testid="input-message"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCorrectText}
+                    disabled={!messageContent.trim() || isCorrecting}
+                    title="Corrigir texto com IA"
+                    data-testid="button-correct-text"
+                  >
+                    <CheckCheck className="w-4 h-4" />
+                  </Button>
+                  {user?.role === "attendant" && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setAiAssistantOpen(true)}
+                      title="Assistente de mensagens"
+                      data-testid="button-assistant"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!messageContent.trim() || sendMessageMutation.isPending}
+                    data-testid="button-send-message"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
                 <div className="flex gap-1">
                   <Button
                     variant="ghost"
@@ -502,27 +623,6 @@ export default function Conversations() {
                     <Paperclip className="w-4 h-4" />
                   </Button>
                 </div>
-                <Input
-                  placeholder="Digite sua mensagem..."
-                  value={messageContent}
-                  onChange={(e) => setMessageContent(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  disabled={sendMessageMutation.isPending}
-                  data-testid="input-message"
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={!messageContent.trim() || sendMessageMutation.isPending}
-                  data-testid="button-send-message"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
               </div>
             </div>
           </>
@@ -628,6 +728,40 @@ export default function Conversations() {
           onUpload={handleFileUpload}
         />
       )}
+
+      <Dialog open={aiAssistantOpen} onOpenChange={setAiAssistantOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Assistente de Mensagens</DialogTitle>
+            <DialogDescription>
+              Selecione um template para inserir na mensagem
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-96">
+            <div className="space-y-2">
+              {templates.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  Nenhum template criado. Crie templates na página de Assistente de Mensagens.
+                </p>
+              ) : (
+                templates.map((template) => (
+                  <Card
+                    key={template.id}
+                    className="p-3 cursor-pointer hover-elevate"
+                    onClick={() => handleSelectTemplate(template)}
+                    data-testid={`template-option-${template.id}`}
+                  >
+                    <h4 className="font-semibold mb-1">{template.title}</h4>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {template.content}
+                    </p>
+                  </Card>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

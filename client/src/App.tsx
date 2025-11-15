@@ -14,6 +14,7 @@ import Conversations from "@/pages/conversations";
 import Contacts from "@/pages/contacts";
 import Users from "@/pages/users";
 import Settings from "@/pages/settings";
+import MessageAssistant from "@/pages/message-assistant";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -92,6 +93,13 @@ function Router() {
         <ProtectedRoute>
           <AuthenticatedLayoutWrapper>
             <Settings />
+          </AuthenticatedLayoutWrapper>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/message-assistant">
+        <ProtectedRoute>
+          <AuthenticatedLayoutWrapper>
+            <MessageAssistant />
           </AuthenticatedLayoutWrapper>
         </ProtectedRoute>
       </Route>
