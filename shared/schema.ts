@@ -42,6 +42,15 @@ export const reactions = pgTable("reactions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const messageTemplates = pgTable("message_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -117,6 +126,17 @@ export const insertReactionSchema = createInsertSchema(reactions).omit({
   createdAt: true,
 });
 
+export const insertMessageTemplateSchema = createInsertSchema(messageTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateMessageTemplateSchema = z.object({
+  title: z.string().min(1, "Título é obrigatório").optional(),
+  content: z.string().min(1, "Conteúdo é obrigatório").optional(),
+});
+
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
@@ -127,3 +147,6 @@ export type Reaction = typeof reactions.$inferSelect;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 export type CreateUserBody = z.infer<typeof createUserBodySchema>;
 export type UpdateUserBody = z.infer<typeof updateUserBodySchema>;
+export type InsertMessageTemplate = z.infer<typeof insertMessageTemplateSchema>;
+export type MessageTemplate = typeof messageTemplates.$inferSelect;
+export type UpdateMessageTemplate = z.infer<typeof updateMessageTemplateSchema>;
