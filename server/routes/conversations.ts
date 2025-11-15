@@ -46,11 +46,11 @@ export function registerConversationRoutes(app: Express) {
         return res.status(404).json({ message: "Conversa não encontrada" });
       }
 
-      if (
-        conversation.clientId !== user.id &&
-        conversation.attendantId !== user.id &&
-        user.role !== 'attendant'
-      ) {
+      const isClient = user.role === 'client' && conversation.clientId === user.id;
+      const isAssignedAttendant = user.role === 'attendant' && conversation.attendantId === user.id;
+      const isPendingUnassigned = user.role === 'attendant' && conversation.status === 'pending' && !conversation.attendantId;
+
+      if (!isClient && !isAssignedAttendant && !isPendingUnassigned) {
         return res.status(403).json({ message: "Sem permissão para acessar esta conversa" });
       }
 
@@ -126,6 +126,15 @@ export function registerConversationRoutes(app: Express) {
         });
       }
 
+      const isAssigningToSelf = validatedData.attendantId === user.id && !conversation.attendantId;
+      const isAlreadyAssigned = conversation.attendantId === user.id;
+
+      if (!isAssigningToSelf && !isAlreadyAssigned) {
+        return res.status(403).json({ 
+          message: "Você só pode alterar conversas atribuídas a você" 
+        });
+      }
+
       const updatedConversation = await storage.updateConversation(
         req.params.id,
         validatedData
@@ -156,11 +165,11 @@ export function registerConversationRoutes(app: Express) {
         return res.status(404).json({ message: "Conversa não encontrada" });
       }
 
-      if (
-        conversation.clientId !== user.id &&
-        conversation.attendantId !== user.id &&
-        user.role !== 'attendant'
-      ) {
+      const isClient = user.role === 'client' && conversation.clientId === user.id;
+      const isAssignedAttendant = user.role === 'attendant' && conversation.attendantId === user.id;
+      const isPendingUnassigned = user.role === 'attendant' && conversation.status === 'pending' && !conversation.attendantId;
+
+      if (!isClient && !isAssignedAttendant && !isPendingUnassigned) {
         return res.status(403).json({ message: "Sem permissão para acessar esta conversa" });
       }
 
