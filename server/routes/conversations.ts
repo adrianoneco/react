@@ -1,7 +1,8 @@
 import type { Express, Request, Response } from "express";
-import { insertConversationSchema, insertMessageSchema, updateConversationSchema } from "@shared/schema";
+import { insertConversationSchema, insertMessageSchema, updateConversationSchema, insertReactionSchema } from "@shared/schema";
 import { storage } from "../storage";
 import { getWebSocketServer } from "../routes";
+import { upload } from "../upload";
 
 export function registerConversationRoutes(app: Express) {
   app.get("/api/conversations", async (req: Request, res: Response) => {
@@ -185,7 +186,7 @@ export function registerConversationRoutes(app: Express) {
     }
   });
 
-  app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
+  app.post("/api/conversations/:id/messages", upload.single('file'), async (req: Request, res: Response) => {
     try {
       if (!req.session.userId) {
         return res.status(401).json({ message: "Não autenticado" });
@@ -208,10 +209,33 @@ export function registerConversationRoutes(app: Express) {
         return res.status(403).json({ message: "Sem permissão para enviar mensagens nesta conversa" });
       }
 
+      let messageType = 'text';
+      let fileUrl = null;
+      let fileName = null;
+
+      if (req.file) {
+        fileUrl = `/${req.file.path}`;
+        fileName = req.file.originalname;
+        
+        if (req.file.mimetype.startsWith('image/')) {
+          messageType = 'image';
+        } else if (req.file.mimetype.startsWith('audio/')) {
+          messageType = 'audio';
+        } else if (req.file.mimetype.startsWith('video/')) {
+          messageType = 'video';
+        } else {
+          messageType = 'file';
+        }
+      }
+
       const validatedData = insertMessageSchema.parse({
         conversationId: req.params.id,
         senderId: user.id,
-        content: req.body.content,
+        content: req.body.content || '',
+        messageType,
+        fileUrl,
+        fileName,
+        replyToId: req.body.replyToId || undefined,
       });
 
       const message = await storage.createMessage(validatedData);
@@ -229,6 +253,108 @@ export function registerConversationRoutes(app: Express) {
       console.error("Create message error:", error);
       res.status(400).json({ 
         message: error.message || "Erro ao enviar mensagem" 
+      });
+    }
+  });
+
+  app.post("/api/messages/:messageId/reactions", async (req: Request, res: Response) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      const { emoji } = req.body;
+      if (!emoji) {
+        return res.status(400).json({ message: "Emoji é obrigatório" });
+      }
+
+      const validatedData = insertReactionSchema.parse({
+        messageId: req.params.messageId,
+        userId: user.id,
+        emoji,
+      });
+
+      const reaction = await storage.createReaction(validatedData);
+
+      const message = await storage.getMessage(req.params.messageId);
+      
+      if (message) {
+        const wsServer = getWebSocketServer();
+        if (wsServer) {
+          wsServer.broadcast(message.conversationId, {
+            type: "new_reaction",
+            reaction,
+          });
+        }
+      }
+
+      res.json(reaction);
+    } catch (error: any) {
+      console.error("Create reaction error:", error);
+      res.status(400).json({ 
+        message: error.message || "Erro ao adicionar reação" 
+      });
+    }
+  });
+
+  app.delete("/api/messages/:messageId/reactions", async (req: Request, res: Response) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Não autenticado" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      const { emoji } = req.body;
+      if (!emoji) {
+        return res.status(400).json({ message: "Emoji é obrigatório" });
+      }
+
+      await storage.deleteReaction(req.params.messageId, user.id, emoji);
+
+      const message = await storage.getMessage(req.params.messageId);
+      
+      if (message) {
+        const wsServer = getWebSocketServer();
+        if (wsServer) {
+          wsServer.broadcast(message.conversationId, {
+            type: "delete_reaction",
+            messageId: req.params.messageId,
+            userId: user.id,
+            emoji,
+          });
+        }
+      }
+
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Delete reaction error:", error);
+      res.status(400).json({ 
+        message: error.message || "Erro ao remover reação" 
+      });
+    }
+  });
+
+  app.get("/api/messages/:messageId/reactions", async (req: Request, res: Response) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Não autenticado" });
+      }
+
+      const reactions = await storage.getReactionsByMessage(req.params.messageId);
+      res.json(reactions);
+    } catch (error: any) {
+      console.error("Get reactions error:", error);
+      res.status(500).json({ 
+        message: "Erro ao buscar reações" 
       });
     }
   });

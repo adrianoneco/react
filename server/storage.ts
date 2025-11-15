@@ -1,14 +1,17 @@
 import { 
   users, 
   conversations, 
-  messages, 
+  messages,
+  reactions,
   type User, 
   type InsertUser,
   type Conversation,
   type InsertConversation,
   type Message,
   type InsertMessage,
-  type UpdateConversation
+  type UpdateConversation,
+  type Reaction,
+  type InsertReaction
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, isNull } from "drizzle-orm";
@@ -25,7 +28,12 @@ export interface IStorage {
   updateConversation(id: string, updates: UpdateConversation): Promise<Conversation | undefined>;
   
   createMessage(message: InsertMessage): Promise<Message>;
+  getMessage(id: string): Promise<Message | undefined>;
   getMessagesByConversation(conversationId: string): Promise<Message[]>;
+  
+  createReaction(reaction: InsertReaction): Promise<Reaction>;
+  deleteReaction(messageId: string, userId: string, emoji: string): Promise<void>;
+  getReactionsByMessage(messageId: string): Promise<Reaction[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -143,12 +151,48 @@ export class DatabaseStorage implements IStorage {
     return message;
   }
 
+  async getMessage(id: string): Promise<Message | undefined> {
+    const [message] = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.id, id));
+    return message || undefined;
+  }
+
   async getMessagesByConversation(conversationId: string): Promise<Message[]> {
     const result = await db
       .select()
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
       .orderBy(messages.createdAt);
+    return result;
+  }
+
+  async createReaction(insertReaction: InsertReaction): Promise<Reaction> {
+    const [reaction] = await db
+      .insert(reactions)
+      .values(insertReaction)
+      .returning();
+    return reaction;
+  }
+
+  async deleteReaction(messageId: string, userId: string, emoji: string): Promise<void> {
+    await db
+      .delete(reactions)
+      .where(
+        and(
+          eq(reactions.messageId, messageId),
+          eq(reactions.userId, userId),
+          eq(reactions.emoji, emoji)
+        )
+      );
+  }
+
+  async getReactionsByMessage(messageId: string): Promise<Reaction[]> {
+    const result = await db
+      .select()
+      .from(reactions)
+      .where(eq(reactions.messageId, messageId));
     return result;
   }
 }

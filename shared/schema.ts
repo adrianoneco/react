@@ -25,11 +25,19 @@ export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
   senderId: varchar("sender_id").notNull().references(() => users.id),
-  content: text("content").notNull(),
+  content: text("content").default(''),
   messageType: text("message_type", { enum: ["text", "image", "audio", "video", "file"] }).notNull().default("text"),
   fileUrl: text("file_url"),
   fileName: text("file_name"),
-  replyToId: varchar("reply_to_id").references(() => messages.id),
+  replyToId: varchar("reply_to_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const reactions = pgTable("reactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  emoji: text("emoji").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -83,8 +91,15 @@ export const updateConversationSchema = z.object({
   status: z.enum(["pending", "attending", "closed"]).optional(),
 });
 
+export const insertReactionSchema = createInsertSchema(reactions).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 export type UpdateConversation = z.infer<typeof updateConversationSchema>;
+export type InsertReaction = z.infer<typeof insertReactionSchema>;
+export type Reaction = typeof reactions.$inferSelect;

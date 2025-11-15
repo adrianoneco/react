@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
-import { Send, MessageSquare, ChevronRight, Clock, CheckCircle, XCircle, Plus, Image, Mic, Video, Paperclip, Reply, X } from "lucide-react";
+import { Send, MessageSquare, ChevronRight, Clock, CheckCircle, XCircle, Plus, Image, Mic, Video, Paperclip, Reply, X, Smile, Camera } from "lucide-react";
 import type { Conversation, Message } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MediaCapture } from "@/components/media-capture";
+import { FileUpload } from "@/components/file-upload";
 
 export default function Conversations() {
   const { user } = useAuth();
@@ -29,6 +31,8 @@ export default function Conversations() {
   const [messageContent, setMessageContent] = useState("");
   const [infoSidebarOpen, setInfoSidebarOpen] = useState(true);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [mediaDialog, setMediaDialog] = useState<'audio' | 'video' | 'photo' | null>(null);
+  const [fileDialog, setFileDialog] = useState<'image' | 'file' | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -122,11 +126,29 @@ export default function Conversations() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const response = await apiRequest("POST", `/api/conversations/${selectedConversationId}/messages`, {
-        content,
-        replyToId: replyingTo?.id,
+    mutationFn: async ({ content, file }: { content: string; file?: File }) => {
+      const formData = new FormData();
+      formData.append("content", content);
+      
+      if (replyingTo?.id) {
+        formData.append("replyToId", replyingTo.id);
+      }
+      
+      if (file) {
+        formData.append("file", file);
+      }
+
+      const response = await fetch(`/api/conversations/${selectedConversationId}/messages`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to send message");
+      }
+
       return response.json();
     },
     onSuccess: () => {
@@ -167,7 +189,17 @@ export default function Conversations() {
 
   const handleSendMessage = () => {
     if (!messageContent.trim() || !selectedConversationId) return;
-    sendMessageMutation.mutate(messageContent);
+    sendMessageMutation.mutate({ content: messageContent });
+  };
+
+  const handleMediaCapture = async (file: File) => {
+    if (!selectedConversationId) return;
+    sendMessageMutation.mutate({ content: file.name, file });
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!selectedConversationId) return;
+    sendMessageMutation.mutate({ content: file.name, file });
   };
 
   const handleAssignToMe = () => {
@@ -203,16 +235,57 @@ export default function Conversations() {
     );
   };
 
-  const handleMediaAction = (type: string) => {
-    toast({
-      title: "Em desenvolvimento",
-      description: `Funcionalidade de ${type} será implementada em breve.`,
-    });
+  const handleReaction = async (messageId: string, emoji: string) => {
+    try {
+      const response = await fetch(`/api/messages/${messageId}/reactions`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to add reaction");
+      }
+
+      refetchMessages();
+    } catch (error) {
+      toast({
+        title: "Erro ao adicionar reação",
+        variant: "destructive",
+      });
+    }
   };
 
   const renderMessage = (msg: Message) => {
     const repliedMessage = msg.replyToId ? messages.find(m => m.id === msg.replyToId) : null;
     const isMine = msg.senderId === user?.id;
+
+    const renderMediaContent = () => {
+      switch (msg.messageType) {
+        case 'image':
+          return msg.fileUrl ? (
+            <img src={msg.fileUrl} alt={msg.fileName || 'Image'} className="max-w-full rounded-md mb-2" />
+          ) : null;
+        case 'audio':
+          return msg.fileUrl ? (
+            <audio src={msg.fileUrl} controls className="w-full mb-2" />
+          ) : null;
+        case 'video':
+          return msg.fileUrl ? (
+            <video src={msg.fileUrl} controls className="max-w-full rounded-md mb-2" />
+          ) : null;
+        case 'file':
+          return msg.fileUrl ? (
+            <a href={msg.fileUrl} download={msg.fileName} className="flex items-center gap-2 p-2 border rounded-md mb-2 hover:bg-muted/50">
+              <Paperclip className="w-4 h-4" />
+              <span className="text-sm truncate">{msg.fileName}</span>
+            </a>
+          ) : null;
+        default:
+          return null;
+      }
+    };
 
     return (
       <div
@@ -233,21 +306,34 @@ export default function Conversations() {
             </div>
           )}
           <div className="p-3">
-            <div className="flex items-start justify-between gap-2 mb-1">
-              <p className="whitespace-pre-wrap flex-1">{msg.content}</p>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 flex-shrink-0"
-                onClick={() => setReplyingTo(msg)}
-                data-testid={`button-reply-${msg.id}`}
-              >
-                <Reply className="w-3 h-3" />
-              </Button>
+            {renderMediaContent()}
+            {msg.content && (
+              <p className="whitespace-pre-wrap mb-1">{msg.content}</p>
+            )}
+            <div className="flex items-center justify-between gap-2">
+              <p className={`text-xs ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                {getTime(msg.createdAt)}
+              </p>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 flex-shrink-0"
+                  onClick={() => handleReaction(msg.id, "👍")}
+                >
+                  <Smile className="w-3 h-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 flex-shrink-0"
+                  onClick={() => setReplyingTo(msg)}
+                  data-testid={`button-reply-${msg.id}`}
+                >
+                  <Reply className="w-3 h-3" />
+                </Button>
+              </div>
             </div>
-            <p className={`text-xs ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-              {getTime(msg.createdAt)}
-            </p>
           </div>
         </div>
       </div>
@@ -373,7 +459,17 @@ export default function Conversations() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleMediaAction("imagem")}
+                    onClick={() => setMediaDialog('photo')}
+                    title="Tirar foto"
+                    data-testid="button-photo"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFileDialog('image')}
+                    title="Enviar imagem"
                     data-testid="button-image"
                   >
                     <Image className="w-4 h-4" />
@@ -381,7 +477,8 @@ export default function Conversations() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleMediaAction("áudio")}
+                    onClick={() => setMediaDialog('audio')}
+                    title="Gravar áudio"
                     data-testid="button-audio"
                   >
                     <Mic className="w-4 h-4" />
@@ -389,7 +486,8 @@ export default function Conversations() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleMediaAction("vídeo")}
+                    onClick={() => setMediaDialog('video')}
+                    title="Gravar vídeo"
                     data-testid="button-video"
                   >
                     <Video className="w-4 h-4" />
@@ -397,7 +495,8 @@ export default function Conversations() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleMediaAction("anexo")}
+                    onClick={() => setFileDialog('file')}
+                    title="Enviar arquivo"
                     data-testid="button-file"
                   >
                     <Paperclip className="w-4 h-4" />
@@ -510,6 +609,24 @@ export default function Conversations() {
             </div>
           </div>
         </div>
+      )}
+
+      {mediaDialog && (
+        <MediaCapture
+          type={mediaDialog}
+          open={!!mediaDialog}
+          onClose={() => setMediaDialog(null)}
+          onCapture={handleMediaCapture}
+        />
+      )}
+
+      {fileDialog && (
+        <FileUpload
+          type={fileDialog}
+          open={!!fileDialog}
+          onClose={() => setFileDialog(null)}
+          onUpload={handleFileUpload}
+        />
       )}
     </div>
   );
