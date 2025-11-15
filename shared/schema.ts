@@ -26,6 +26,10 @@ export const messages = pgTable("messages", {
   conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
   senderId: varchar("sender_id").notNull().references(() => users.id),
   content: text("content").notNull(),
+  messageType: text("message_type", { enum: ["text", "image", "audio", "video", "file"] }).notNull().default("text"),
+  fileUrl: text("file_url"),
+  fileName: text("file_name"),
+  replyToId: varchar("reply_to_id").references(() => messages.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -67,6 +71,11 @@ export const insertConversationSchema = createInsertSchema(conversations).omit({
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   createdAt: true,
+}).extend({
+  messageType: z.enum(["text", "image", "audio", "video", "file"]).optional(),
+  fileUrl: z.string().optional(),
+  fileName: z.string().optional(),
+  replyToId: z.string().optional(),
 });
 
 export const updateConversationSchema = z.object({

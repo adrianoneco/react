@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { insertConversationSchema, insertMessageSchema, updateConversationSchema } from "@shared/schema";
 import { storage } from "../storage";
+import { getWebSocketServer } from "../routes";
 
 export function registerConversationRoutes(app: Express) {
   app.get("/api/conversations", async (req: Request, res: Response) => {
@@ -214,6 +215,14 @@ export function registerConversationRoutes(app: Express) {
       });
 
       const message = await storage.createMessage(validatedData);
+
+      const wsServer = getWebSocketServer();
+      if (wsServer) {
+        wsServer.broadcast(req.params.id, {
+          type: "new_message",
+          message,
+        });
+      }
 
       res.json(message);
     } catch (error: any) {

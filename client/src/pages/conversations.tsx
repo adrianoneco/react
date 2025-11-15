@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
-import { Send, MessageSquare, User, ChevronRight, Clock, CheckCircle, XCircle, Plus } from "lucide-react";
+import { Send, MessageSquare, ChevronRight, Clock, CheckCircle, XCircle, Plus, Image, Mic, Video, Paperclip, Reply, X } from "lucide-react";
 import type { Conversation, Message } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,9 @@ export default function Conversations() {
   const [selectedStatus, setSelectedStatus] = useState<string>("pending");
   const [messageContent, setMessageContent] = useState("");
   const [infoSidebarOpen, setInfoSidebarOpen] = useState(true);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations = [], refetch: refetchConversations } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations", selectedStatus],
@@ -38,7 +41,6 @@ export default function Conversations() {
       if (!response.ok) throw new Error("Failed to fetch conversations");
       return response.json();
     },
-    refetchInterval: 3000,
   });
 
   const { data: selectedConversation } = useQuery<Conversation>({
@@ -63,8 +65,38 @@ export default function Conversations() {
       if (!response.ok) throw new Error("Failed to fetch messages");
       return response.json();
     },
-    refetchInterval: 2000,
   });
+
+  useEffect(() => {
+    if (!selectedConversationId || !user) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: "auth", userId: user.id }));
+      ws.send(JSON.stringify({ type: "subscribe", conversationId: selectedConversationId }));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "new_message") {
+        refetchMessages();
+        refetchConversations();
+      }
+    };
+
+    wsRef.current = ws;
+
+    return () => {
+      ws.send(JSON.stringify({ type: "unsubscribe" }));
+      ws.close();
+    };
+  }, [selectedConversationId, user, refetchMessages, refetchConversations]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const createConversationMutation = useMutation({
     mutationFn: async () => {
@@ -93,13 +125,13 @@ export default function Conversations() {
     mutationFn: async (content: string) => {
       const response = await apiRequest("POST", `/api/conversations/${selectedConversationId}/messages`, {
         content,
+        replyToId: replyingTo?.id,
       });
       return response.json();
     },
     onSuccess: () => {
       setMessageContent("");
-      refetchMessages();
-      refetchConversations();
+      setReplyingTo(null);
     },
     onError: (error: Error) => {
       toast({
@@ -156,10 +188,10 @@ export default function Conversations() {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { icon: any; label: string; color: string }> = {
-      pending: { icon: Clock, label: "Pendente", color: "bg-yellow-500" },
-      attending: { icon: CheckCircle, label: "Atendendo", color: "bg-blue-500" },
-      closed: { icon: XCircle, label: "Fechado", color: "bg-gray-500" },
+    const variants: Record<string, { icon: any; label: string }> = {
+      pending: { icon: Clock, label: "Pendente" },
+      attending: { icon: CheckCircle, label: "Atendendo" },
+      closed: { icon: XCircle, label: "Fechado" },
     };
     const config = variants[status] || variants.pending;
     const Icon = config.icon;
@@ -168,6 +200,57 @@ export default function Conversations() {
         <Icon className="w-3 h-3" />
         {config.label}
       </Badge>
+    );
+  };
+
+  const handleMediaAction = (type: string) => {
+    toast({
+      title: "Em desenvolvimento",
+      description: `Funcionalidade de ${type} será implementada em breve.`,
+    });
+  };
+
+  const renderMessage = (msg: Message) => {
+    const repliedMessage = msg.replyToId ? messages.find(m => m.id === msg.replyToId) : null;
+    const isMine = msg.senderId === user?.id;
+
+    return (
+      <div
+        key={msg.id}
+        className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+        data-testid={`message-${msg.id}`}
+      >
+        <div className={`max-w-md rounded-md ${isMine ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+          {repliedMessage && (
+            <div className={`px-3 pt-3 pb-1 border-l-2 ${isMine ? "border-primary-foreground/30" : "border-primary/30"}`}>
+              <div className={`text-xs ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"} mb-1`}>
+                <Reply className="w-3 h-3 inline mr-1" />
+                Respondendo
+              </div>
+              <div className={`text-sm ${isMine ? "text-primary-foreground/80" : "text-muted-foreground/80"} line-clamp-2`}>
+                {repliedMessage.content}
+              </div>
+            </div>
+          )}
+          <div className="p-3">
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <p className="whitespace-pre-wrap flex-1">{msg.content}</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 flex-shrink-0"
+                onClick={() => setReplyingTo(msg)}
+                data-testid={`button-reply-${msg.id}`}
+              >
+                <Reply className="w-3 h-3" />
+              </Button>
+            </div>
+            <p className={`text-xs ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+              {getTime(msg.createdAt)}
+            </p>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -226,7 +309,7 @@ export default function Conversations() {
             {conversations.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Nenhuma conversa {selectedStatus === "pending" ? "pendente" : selectedStatus === "attending" ? "em atendimento" : "fechada"}</p>
+                <p>Nenhuma conversa</p>
               </div>
             )}
           </div>
@@ -260,31 +343,66 @@ export default function Conversations() {
 
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.senderId === user?.id ? "justify-end" : "justify-start"}`}
-                    data-testid={`message-${msg.id}`}
-                  >
-                    <div
-                      className={`max-w-md rounded-md p-3 ${
-                        msg.senderId === user?.id
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                      <p className={`text-xs mt-1 ${msg.senderId === user?.id ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                        {getTime(msg.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                {messages.map(renderMessage)}
+                <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
 
             <div className="p-4 border-t">
-              <div className="flex gap-2">
+              {replyingTo && (
+                <div className="mb-2 p-2 bg-muted rounded-md flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="text-xs text-muted-foreground mb-1">
+                      <Reply className="w-3 h-3 inline mr-1" />
+                      Respondendo
+                    </div>
+                    <p className="text-sm line-clamp-2">{replyingTo.content}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setReplyingTo(null)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              <div className="flex gap-2 items-end">
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleMediaAction("imagem")}
+                    data-testid="button-image"
+                  >
+                    <Image className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleMediaAction("áudio")}
+                    data-testid="button-audio"
+                  >
+                    <Mic className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleMediaAction("vídeo")}
+                    data-testid="button-video"
+                  >
+                    <Video className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleMediaAction("anexo")}
+                    data-testid="button-file"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
+                </div>
                 <Input
                   placeholder="Digite sua mensagem..."
                   value={messageContent}
@@ -297,6 +415,7 @@ export default function Conversations() {
                   }}
                   disabled={sendMessageMutation.isPending}
                   data-testid="input-message"
+                  className="flex-1"
                 />
                 <Button
                   onClick={handleSendMessage}
